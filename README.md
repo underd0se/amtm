@@ -28,6 +28,7 @@ amtm
 |--------|------------|------|
 | Diversion | thelonelycoder | [Link](https://www.snbforums.com/forums/asuswrt-merlin-addons.60/?prefix_id=10&starter_id=25480) |
 | Skynet | Adamm | [Link](https://www.snbforums.com/forums/asuswrt-merlin-addons.60/?prefix_id=14) |
+| Skynet Zero | underdose | [Link](https://www.snbforums.com/threads/skynet-zero-a-swapless-fork-of-skynet.97604/) |
 | FlexQoS | dave14305, AMTM-OSR team | [Link](https://www.snbforums.com/forums/asuswrt-merlin-addons.60/?prefix_id=8&starter_id=58901) |
 | YazFi | Jack Yaz, AMTM-OSR team | [Link](https://www.snbforums.com/forums/asuswrt-merlin-addons.60/?prefix_id=13&starter_id=53009) |
 | scribe | cmkelley, AMTM-OSR team | [Link](https://www.snbforums.com/forums/asuswrt-merlin-addons.60/?prefix_id=7) |
