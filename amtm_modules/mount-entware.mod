@@ -8,6 +8,10 @@ mount_entware(){
 		ln -nsf "${opkgFile%/bin/opkg}" /tmp/opt
 		/opt/etc/init.d/rc.unslung start "$0"
 		service restart_dnsmasq
+		
+		if [ -s /opt/share/diversion/file/dnsmasq-instances.div ]; then
+			/bin/sh /opt/share/diversion/file/dnsmasq-instances.div startup &
+		fi
 	else
 		logger -t Entware "Starting Entware services on $opkgPath"
 		ln -nsf "${opkgFile%/bin/opkg}" /tmp/opt

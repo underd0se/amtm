@@ -159,7 +159,7 @@ write_fw_update_file(){
 	    echo "Latest available stable version: \$STABLEVERS" >>/tmp/amtm-mail-body
 	    echo >>/tmp/amtm-mail-body
 	    echo "See the Asuswrt-Merlin changelog for what's new:" >>/tmp/amtm-mail-body
-	    echo "https://asuswrt-merlin.net/changelog" >>/tmp/amtm-mail-body
+	    echo "https://asuswrt-merlin.net/docs" >>/tmp/amtm-mail-body
 	    echo >>/tmp/amtm-mail-body
 	    echo "Downloads are available at: https://asuswrt-merlin.net/download" >>/tmp/amtm-mail-body
 	    echo >>/tmp/amtm-mail-body
