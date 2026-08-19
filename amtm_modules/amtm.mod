@@ -14,6 +14,7 @@ unset LD_LIBRARY_PATH
 # Begin updates for /usr/sbin/amtm
 r_m(){ [ -f "${add}/$1" ] && rm -f "${add}/$1";}
 s_d_u(){ case "$amtmBranch" in LOCAL)amtmURL=http://diversion.test/amtm_fw;brTxt=$amtmBranch;;BETA)amtmURL=https://diversion.ch/amtm_fw_beta;brTxt=$amtmBranch;;*)amtmURL=https://fwupdate.asuswrt-merlin.net/amtm_fw;brTxt=;;esac;};s_d_u
+amtmRev="${amtmRev:-0}"
 if [ "$amtmRev" -lt 9 ]; then
 	if [ "$amtmRev" = 1 ]; then g_m amtm_rev1.mod include; elif [ "$amtmRev" -ge 2 ]; then r_m amtm_rev1.mod; fi
 	if [ "$amtmRev" -le 3 ]; then g_m amtm_rev3.mod include; elif [ "$amtmRev" -gt 3 ]; then r_m amtm_rev3.mod; fi
@@ -72,7 +73,17 @@ c_d(){ p_e_l;while true;do printf " Continue? [1=Yes e=Exit] ";read -r continue;
 o_g_s(){ show_amtm " ${R}Open games section with${NC} ${GN_BG} g ${NC} ${R}to play a game${NC}";}
 p_e_t(){ printf "\\n Press Enter to $1 ";read -r;echo;}
 s_p(){ for i in "$1"/*; do if [ -d "$i" ]; then s_p "$i";elif [ -f "$i" ]; then [ ! -w "$i" ] && chmod 0666 "$i";d_t_u "$i";fi;done;}
-v_c(){ echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }';}
+v_c(){
+	local v1 v2 v3 v4
+	OIFS="$IFS"; IFS="."
+	set -f; set -- $1; set +f
+	IFS="$OIFS"
+	v1="${1%%[!0-9]*}"; v1="${v1:-0}"
+	v2="${2%%[!0-9]*}"; v2="${v2:-0}"
+	v3="${3%%[!0-9]*}"; v3="${v3:-0}"
+	v4="${4%%[!0-9]*}"; v4="${v4:-0}"
+	printf "%d%03d%03d%03d\n" "$v1" "$v2" "$v3" "$v4"
+}
 
 g_i_m(){
 	for i in "$1"/*; do
@@ -149,38 +160,54 @@ show_amtm(){
 		echo
 		clear
 		printf "${R_BG}%-27s%s\\n\\n" " amtm $version $brTxt" "by thelonelycoder ${NC}"
-		[ -z "$(nvram get odmpid)" ] && model="$(nvram get productid)" || model="$(nvram get odmpid)"
-		extendno=$(nvram get extendno)
-		[ "$(echo $extendno | wc -c)" -gt 9 ] && extendno="$(echo $extendno | cut -b 1-7).."
-		[ "$extendno" = 0 ] && extendno= || extendno=_$extendno
+		nv_odmpid="$(nvram get odmpid)"
+		[ -z "$nv_odmpid" ] && model="$(nvram get productid)" || model="$nv_odmpid"
+		extendno="$(nvram get extendno)"
+		[ "${#extendno}" -gt 8 ] && extendno="$(echo "$extendno" | cut -b 1-7).."
+		[ "$extendno" = "0" ] && extendno= || extendno="_$extendno"
 		awmBuildno="$(nvram get buildno)"
-		[ "$(v_c $awmBuildno)" -ge "$(v_c 388)" -o "$(v_c $(nvram get firmver))" -ge "$(v_c 3.0.0.6)" ] && fwVersion=$(nvram get firmver | sed 's/\.//g').$awmBuildno$extendno || fwVersion=$awmBuildno$extendno
-		printf " $model ($(uname -m)) Kernel-$(uname -r | sed 's/brcmarm//g')\\n FW-$fwVersion @ $(nvram get lan_ipaddr)\\n"
+		nv_firmver="$(nvram get firmver)"
+		firmver_clean="$nv_firmver"
+		while [ "${firmver_clean#*.}" != "$firmver_clean" ]; do
+			firmver_clean="${firmver_clean%%.*}${firmver_clean#*.}"
+		done
+		[ "$(v_c "$awmBuildno")" -ge "$(v_c 388)" -o "$(v_c "$nv_firmver")" -ge "$(v_c 3.0.0.6)" ] && fwVersion="$firmver_clean.$awmBuildno$extendno" || fwVersion="$awmBuildno$extendno"
+		uname_r="$(uname -r)"
+		uname_r="${uname_r%brcmarm}"
+		printf " $model ($(uname -m)) Kernel-$uname_r\\n FW-$fwVersion @ $(nvram get lan_ipaddr)\\n"
 
 		OM='Operation Mode:'
-		case "$(nvram get sw_mode)" in
+		nv_sw_mode="$(nvram get sw_mode)"
+		nv_wlc_psta="$(nvram get wlc_psta)"
+		case "$nv_sw_mode" in
 			1) echo " $OM Wireless router";;
 			2) echo " $OM Repeater";;
-			3) 	case "$(nvram get wlc_psta)" in
+			3) 	case "$nv_wlc_psta" in
 					0) echo " $OM Access Point (AP)";;
 					1) echo " $OM Media Bridge";;
 					2) echo " $OM Repeater/AiMesh Node";;
-					*) echo " $OM sw_mode:$(nvram get sw_mode),wlc_psta:$(nvram get wlc_psta),Unknown";;
+					*) echo " $OM sw_mode:$nv_sw_mode,wlc_psta:$nv_wlc_psta,Unknown";;
 				esac;;
 			4) echo " $OM Media Bridge";;
 			5) echo " $OM AiMesh Node";;
-			*) echo " $OM sw_mode:$(nvram get sw_mode),wlc_psta:$(nvram get wlc_psta),Unknown";;
+			*) echo " $OM sw_mode:$nv_sw_mode,wlc_psta:$nv_wlc_psta,Unknown";;
 		esac
-		printf " $(TZ=$(nvram get time_zone_x) date)\\n"
+		printf " $(TZ="$(nvram get time_zone_x)" date)\\n"
 		printf "\\n${R_BG}%-44s ${NC}\\n\\n" " amtm - the $amtmTitle"
 		if [ -f /opt/bin/opkg ]; then
-			thisDev="$(readlink /tmp/opt | sed 's#/tmp/#/#')"
-			printf "${R_BG}%-44s ${NC}\\n\\n" " $(df -kh ${thisDev%/entware} | xargs | awk '{print "'${thisDev%/entware}' "$2" "$9" "$3" "$10" ("$12")"}')"
+			thisDev="$(readlink /tmp/opt)"
+			thisDev="/${thisDev#/tmp/}"
+			{ read -r _ t_sz t_us _; read -r _ sz us _ pct _; } <<EOF
+$(df -kh "${thisDev%/entware}" 2>/dev/null)
+EOF
+			printf "${R_BG}%-44s ${NC}\\n\\n" " ${thisDev%/entware} $t_sz $sz $t_us $us ($pct)"
 		fi
 		[ "$ss" ] && printf "${GN_BG}%-44s ${NC}\\n\\n" "    3rd-party scripts"
 		shared_amtm_wl=/jffs/addons/shared-whitelists/shared-amtm-whitelist
 		if [ ! -f /jffs/addons/shared-whitelists/shared-Diversion-whitelist ]; then
-			if [ ! -f "$shared_amtm_wl" ] || [ "$wl_MD5" != "$(md5sum "$shared_amtm_wl" | awk '{print $1}')" ]; then
+			cur_md5="$(md5sum "$shared_amtm_wl" 2>/dev/null)"
+			cur_md5="${cur_md5%% *}"
+			if [ ! -f "$shared_amtm_wl" ] || [ "$wl_MD5" != "$cur_md5" ]; then
 				mkdir -p /jffs/addons/shared-whitelists
 				cat <<-EOF >"$shared_amtm_wl"
 				asuswrt-merlin.net
@@ -220,7 +247,7 @@ show_amtm(){
 			rm -f "$shared_amtm_wl"
 		fi
 	fi
-	[ "$(echo $am | grep 'update')" -o "$(echo $1 | grep 'update')" ] && cleanup=on
+	case "$am $1" in *update*) cleanup=on ;; esac
 
 	modules='/opt/bin/diversion Diversion 1 Diversion¦-¦the¦Router¦Adblocker EntReq
 	/jffs/scripts/firewall skynet 2 Skynet¦-¦the¦Router¦Firewall
@@ -330,29 +357,49 @@ show_amtm(){
 							g_m format_disk.mod include
 							[ -f "${add}"/format_disk.mod ] && format_disk || show_amtm menu
 						};;
-			*) 			scriptloc=$(echo $i | awk '{print $1}')
-						f2=$(echo $i | awk '{print $2}');scriptname=$f2
+			*) 			scriptloc="${i%% *}"
+						i_rest="${i#* }"
+						f2="${i_rest%% *}"
+						scriptname="$f2"
 						if [ -f "$scriptloc" ]; then
 							g_m ${f2}.mod include
 							[ -f "${add}/${f2}.mod" ] && ${f2}_installed
 						else
-							f3="$(echo $i | awk '{print $3}')"
+							i_rest2="${i_rest#* }"
+							f3="${i_rest2%% *}"
 							if [ "$ss" ]; then
-								[ "$(echo $i | grep "osr")" ] && f5="${GN}*${NC}" || f5=
-								f6=
-								[ "$(echo $i | grep "EntReq")" ] && f6=", ${R}Requires Entware${NC}"
-								[ "$(echo $i | grep "EntRec")" ] && f6=", ${GN}Entware recommended${NC}"
-								bsp=' '
-								case "$(echo $f3 | wc -m)" in
-									2)	ssp=' ';;
-									3)	ssp=;;
-									4)	unset bsp ssp;;
+								case "$i" in *osr*) f5="${GN}*${NC}" ;; *) f5= ;; esac
+								case "$i" in
+									*EntReq*) f6=", ${R}Requires Entware${NC}" ;;
+									*EntRec*) f6=", ${GN}Entware recommended${NC}" ;;
+									*) f6= ;;
 								esac
-								printf "${E_BG}$bsp${f3}$ssp${NC} %-9s%s\\n" "install" "$(echo $i | awk '{print $4}' | sed 's/¦/ /g')$f5$f6"
+								bsp=' '
+								case "${#f3}" in
+									1)	ssp=' ';;
+									2)	ssp=;;
+									3)	unset bsp ssp;;
+								esac
+								i_rest3="${i_rest2#* }"
+								f4="${i_rest3%% *}"
+								f4_spaced="$f4"
+								while [ "${f4_spaced#*¦}" != "$f4_spaced" ]; do
+									f4_spaced="${f4_spaced%%¦*} ${f4_spaced#*¦}"
+								done
+								printf "${E_BG}$bsp${f3}$ssp${NC} %-9s%s\\n" "install" "$f4_spaced$f5$f6"
 							fi
 							if [ -z "$end3rdps" ]; then
 								[ -s "${add}"/availUpd.txt -a -f "${add}/${f2}.mod" ] && sed -i "/^$scriptname.*/d" "${add}"/availUpd.txt
-								[ -s "${add}"/amtmUpdateScripts ] && [ "$(grep "$scriptname" "${add}"/amtmUpdateScripts)" ] && sed -i "/$scriptname/d" "${add}"/amtmUpdateScripts
+								if [ -s "${add}"/amtmUpdateScripts ]; then
+									while read -r upd_line; do
+										case "$upd_line" in
+											*"$scriptname"*)
+												sed -i "/$scriptname/d" "${add}"/amtmUpdateScripts
+												break
+												;;
+										esac
+									done < "${add}"/amtmUpdateScripts
+								fi
 							fi
 							r_m ${f2}.mod
 							case $f3 in
@@ -407,14 +454,21 @@ show_amtm(){
 
 	unset IFS swl swsize swpsize swtxt mpsw cleanup
 	gms(){ g_m swap.mod include;[ "$dlok" = 0 ] && show_amtm menu;}
-	[ -f /jffs/scripts/post-mount ] && swl="$(grep -E "^swapon " /jffs/scripts/post-mount | awk '{print $2}')"
-	if [ "$(wc -l < /proc/swaps)" -eq 2 ]; then
-		if [ -f "$swl" ] && [ "$swl" = "$(sed -n '2p' /proc/swaps | awk '{print $1}')" ]; then
-			if grep -qE "^swapon $swl" /jffs/scripts/post-mount; then
-				swsize=$(du -h "$swl" | awk '{print $1}')
-			else
-				gms;check_swap
+	if [ -f /jffs/scripts/post-mount ]; then
+		while read -r p1 p2 p3; do
+			if [ "$p1" = "swapon" ]; then
+				swl="$p2"
+				break
 			fi
+		done < /jffs/scripts/post-mount
+	fi
+	swap_count=0
+	while read -r _ ; do swap_count=$((swap_count+1)); done < /proc/swaps
+	if [ "$swap_count" -eq 2 ]; then
+		{ read -r _; read -r swap_file _; } < /proc/swaps
+		if [ -f "$swl" ] && [ "$swl" = "$swap_file" ]; then
+			swsize="$(du -h "$swl" 2>/dev/null)"
+			swsize="${swsize%%/*}"
 		else
 			gms;check_swap
 		fi
@@ -428,7 +482,9 @@ show_amtm(){
 	fi
 	if [ -f "$swl" ]; then
 		atii=1
-		[ -z "$su" -a -z "$ss" ] && printf "${GN_BG} sw${NC} %-9s%s ${GN}%s${NC} $swsize\\n" "manage" "Swap file" "$(echo "${swl#/tmp}" | sed 's|/myswap.swp||')"
+		swl_clean="${swl#/tmp}"
+		swl_clean="${swl_clean%/myswap.swp}"
+		[ -z "$su" -a -z "$ss" ] && printf "${GN_BG} sw${NC} %-9s%s ${GN}%s${NC} $swsize\\n" "manage" "Swap file" "$swl_clean"
 		case_swp(){
 			gms;manage_swap manage
 		}
@@ -569,10 +625,14 @@ show_amtm(){
 		p_e_l
 		MD5_info
 		if [ "$am" ]; then
-			[ "$1" = menu ] && printf "$(echo "$am" | sed 's/^\\n//')\\n" || printf "$1\\n$am\\n"
+			if [ "$1" = menu ]; then
+				printf "%b\\n" "${am#\\n}"
+			else
+				printf "%b\\n%b\\n" "$1" "$am"
+			fi
 			am=
 		else
-			printf "$1\\n"
+			printf "%b\\n" "$1"
 		fi
 		p_e_l
 	fi
@@ -768,15 +828,15 @@ auto_script_updates(){
 		i=0
 		for script in $(grep "^[^#]" "${add}"/amtmUpdateScripts); do
 			i="$((i+1))"
-			[ "$(echo $i | wc -c)" -ge 3 ] && spce= || spce=" "
+			[ "$i" -ge 10 ] && spce= || spce=" "
 			printf " $spce$i: ${GN}$script${NC}, enabled\\n"
 			eval "scriptSel$i=$script"
 		done
 		for script in $(grep "^#[^#]" "${add}"/amtmUpdateScripts); do
 			i="$((i+1))"
-			[ "$(echo $i | wc -c)" -ge 3 ] && spce= || spce=" "
-			printf " $spce$i: $spce${R}$(echo $script | sed 's/#//')${NC}, disabled in amtm\\n"
-			eval "scriptSel$i=$(echo $script | sed 's/#//')"
+			[ "$i" -ge 10 ] && spce= || spce=" "
+			printf " $spce$i: $spce${R}${script#\#}${NC}, disabled in amtm\\n"
+			eval "scriptSel$i=${script#\#}"
 		done
 
 		while true; do
@@ -821,10 +881,11 @@ auto_script_updates(){
 			printf " - ${GN}$script${NC}, enabled\n"
 		done
 		for script in $(grep "^#[^#]" "${add}"/amtmUpdateScripts); do
-			printf " - ${R}$(echo $script | sed 's/#//')${NC}, disabled in amtm\n"
+			printf " - ${R}${script#\#}${NC}, disabled in amtm\n"
 		done
 		for script in $(grep "^##" "${add}"/amtmUpdateScripts); do
-			printf " - ${R}$(echo $script | sed 's/##//')${NC}, disabled by $(echo $script | sed 's/##//')\n"
+			s_clean="${script#\#\#}"
+			printf " - ${R}${s_clean}${NC}, disabled by ${s_clean}\n"
 		done
 	else
 		show_amtm " No supported scripts found."
@@ -882,9 +943,11 @@ script_check(){
 	upd="${E_BG}${NC}$localver"
 	lvtpu=$localver
 	if [ "$su" = 1 -a -z "$asuc" ]; then
-		if c_url "$remoteurl" | grep -qF -m1 "$grepcheck"; then
-			[ "$remoteVother" ] && remotever=$remoteVother || remotever="$(c_url "$remoteurl" | grep -m1 "$scriptgrep" | grep -oE '[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})')"
-			localmd5="$(md5sum "$scriptloc" | awk '{print $1}')"
+		c_url "$remoteurl" -o /tmp/amtm_script_check
+		if grep -qF -m1 "$grepcheck" /tmp/amtm_script_check 2>/dev/null; then
+			[ "$remoteVother" ] && remotever=$remoteVother || remotever="$(grep -m1 "$scriptgrep" /tmp/amtm_script_check 2>/dev/null | grep -oE '[0-9]{1,2}([.][0-9]{1,2})([.][0-9]{1,2})')"
+			localmd5="$(md5sum "$scriptloc" 2>/dev/null)"
+			localmd5="${localmd5%% *}"
 			upd="${GN_BG}$localver${NC}"
 			asu_check
 
@@ -923,7 +986,8 @@ script_check(){
 					if grep -q -m1 '^# amtm NoMD5check' "$scriptloc"; then
 						localver="No MD5";NoMD5=1
 					else
-						remotemd5="$(c_url "$remoteurl" | md5sum | awk '{print $1}')"
+						remotemd5="$(md5sum /tmp/amtm_script_check 2>/dev/null)"
+						remotemd5="${remotemd5%% *}"
 						if [ "$localmd5" != "$remotemd5" ]; then
 							upd="${E_BG}-> MD5 upd${NC}"
 							tpUpd="-> MD5 upd"
@@ -1115,27 +1179,34 @@ reset_amtm(){
 
 update_amtm(){
 	urlNOK=
-	if ! c_url "$amtmURL/amtm.mod" | grep -q "^version="; then
+	c_url "$amtmURL/amtm.mod" -o /tmp/amtm_check.mod
+	if ! grep -q "^version=" /tmp/amtm_check.mod 2>/dev/null; then
 		urlNOK=1
 		f_b_url
+		c_url "$amtmURL/amtm.mod" -o /tmp/amtm_check.mod
 	fi
-	if [ "$urlNOK" ] && ! c_url "$amtmURL/amtm.mod" | grep -q "^version="; then
+	if [ "$urlNOK" ] && ! grep -q "^version=" /tmp/amtm_check.mod 2>/dev/null; then
 		if [ "$su" = 1 ]; then
 			updErr=1
 			thisrem=" ${E_BG}upd err${NC}"
 			amtmUpd=0
-			a_m " ! amtm: ${R}$(echo $amtmURL | awk -F[/:] '{print $4}')${NC} unreachable"
+			d_name="${amtmURL#*//}"; d_name="${d_name%%/*}"
+			a_m " ! amtm: ${R}${d_name}${NC} unreachable"
 		else
-			show_amtm " ! amtm: ${R}$(echo $amtmURL | awk -F[/:] '{print $4}')${NC} unreachable"
+			d_name="${amtmURL#*//}"; d_name="${d_name%%/*}"
+			show_amtm " ! amtm: ${R}${d_name}${NC} unreachable"
 		fi
 	else
 		urlNOK=
 	fi
 	dfc=
 	if [ -z "$urlNOK" ]; then
-		amtmRemotever="$(c_url "$amtmURL/amtm.mod" | grep "^version=" | sed -e 's/version=//')"
-		localmd5="$(md5sum "${add}"/a_fw/amtm.mod | awk '{print $1}')"
-		remotemd5="$(c_url "$amtmURL/amtm.mod" | md5sum | awk '{print $1}')"
+		amtmRemotever="$(grep -m1 "^version=" /tmp/amtm_check.mod 2>/dev/null)"
+		amtmRemotever="${amtmRemotever#version=}"
+		localmd5="$(md5sum "${add}"/a_fw/amtm.mod 2>/dev/null)"
+		localmd5="${localmd5%% *}"
+		remotemd5="$(md5sum /tmp/amtm_check.mod 2>/dev/null)"
+		remotemd5="${remotemd5%% *}"
 
 		if [ "$su" = 1 ]; then
 			if [ "$version" != "$amtmRemotever" ]; then
