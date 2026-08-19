@@ -163,13 +163,18 @@ show_amtm(){
 		nv_odmpid="$(nvram get odmpid)"
 		[ -z "$nv_odmpid" ] && model="$(nvram get productid)" || model="$nv_odmpid"
 		extendno="$(nvram get extendno)"
-		[ "${#extendno}" -gt 8 ] && extendno="${extendno:0:7}.."
+		[ "${#extendno}" -gt 8 ] && extendno="$(echo "$extendno" | cut -b 1-7).."
 		[ "$extendno" = "0" ] && extendno= || extendno="_$extendno"
 		awmBuildno="$(nvram get buildno)"
 		nv_firmver="$(nvram get firmver)"
-		[ "$(v_c "$awmBuildno")" -ge "$(v_c 388)" -o "$(v_c "$nv_firmver")" -ge "$(v_c 3.0.0.6)" ] && fwVersion="${nv_firmver//./}.$awmBuildno$extendno" || fwVersion="$awmBuildno$extendno"
+		firmver_clean="$nv_firmver"
+		while [ "${firmver_clean#*.}" != "$firmver_clean" ]; do
+			firmver_clean="${firmver_clean%%.*}${firmver_clean#*.}"
+		done
+		[ "$(v_c "$awmBuildno")" -ge "$(v_c 388)" -o "$(v_c "$nv_firmver")" -ge "$(v_c 3.0.0.6)" ] && fwVersion="$firmver_clean.$awmBuildno$extendno" || fwVersion="$awmBuildno$extendno"
 		uname_r="$(uname -r)"
-		printf " $model ($(uname -m)) Kernel-${uname_r//brcmarm/}\\n FW-$fwVersion @ $(nvram get lan_ipaddr)\\n"
+		uname_r="${uname_r%brcmarm}"
+		printf " $model ($(uname -m)) Kernel-$uname_r\\n FW-$fwVersion @ $(nvram get lan_ipaddr)\\n"
 
 		OM='Operation Mode:'
 		nv_sw_mode="$(nvram get sw_mode)"
@@ -191,7 +196,7 @@ show_amtm(){
 		printf "\\n${R_BG}%-44s ${NC}\\n\\n" " amtm - the $amtmTitle"
 		if [ -f /opt/bin/opkg ]; then
 			thisDev="$(readlink /tmp/opt)"
-			thisDev="${thisDev/\/tmp\//\/}"
+			thisDev="/${thisDev#/tmp/}"
 			{ read -r _ t_sz t_us _; read -r _ sz us _ pct _; } <<EOF
 $(df -kh "${thisDev%/entware}" 2>/dev/null)
 EOF
@@ -377,7 +382,11 @@ EOF
 								esac
 								i_rest3="${i_rest2#* }"
 								f4="${i_rest3%% *}"
-								printf "${E_BG}$bsp${f3}$ssp${NC} %-9s%s\\n" "install" "${f4//¦/ }$f5$f6"
+								f4_spaced="$f4"
+								while [ "${f4_spaced#*¦}" != "$f4_spaced" ]; do
+									f4_spaced="${f4_spaced%%¦*} ${f4_spaced#*¦}"
+								done
+								printf "${E_BG}$bsp${f3}$ssp${NC} %-9s%s\\n" "install" "$f4_spaced$f5$f6"
 							fi
 							if [ -z "$end3rdps" ]; then
 								[ -s "${add}"/availUpd.txt -a -f "${add}/${f2}.mod" ] && sed -i "/^$scriptname.*/d" "${add}"/availUpd.txt
@@ -459,7 +468,7 @@ EOF
 		{ read -r _; read -r swap_file _; } < /proc/swaps
 		if [ -f "$swl" ] && [ "$swl" = "$swap_file" ]; then
 			swsize="$(du -h "$swl" 2>/dev/null)"
-			swsize="${swsize%%[[:space:]]*}"
+			swsize="${swsize%%/*}"
 		else
 			gms;check_swap
 		fi
